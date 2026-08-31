@@ -1,39 +1,39 @@
 # Kanban Sticky
 
-Widget kanban floating untuk macOS dengan kolom Todo, Progress, dan Done.
+A floating Kanban widget for macOS with Todo, Progress, and Done columns.
 
-## Menjalankan
+## Run
 
-Klik dua kali `build-and-run.sh`, atau jalankan dari Terminal:
+Run:
 
 ```sh
 ./build-and-run.sh
 ```
 
-Task disimpan otomatis di Mac menggunakan UserDefaults. Arahkan pointer ke sebuah task untuk memindahkan atau menghapusnya. Klik lingkaran di kiri task untuk langsung menandainya selesai.
+Tasks are stored on macOS using UserDefaults. Hover over a task to reveal its actions. Click the circle on the left to mark it complete.
 
-Tarik tepi atau sudut widget untuk mengubah ukurannya. Saat lebarnya mencapai sekitar 720 px, tampilan otomatis berubah menjadi papan tiga kolom. Dalam mode ini, drag sebuah task lalu drop ke kolom Todo, Progress, atau Done.
+Drag an edge or corner to resize the widget. At about 720 px wide, it switches to a three-column board. In this layout, drag tasks between Todo, Progress, and Done.
 
-Ukuran dan posisi terakhir widget diingat otomatis saat aplikasi dibuka kembali.
+The widget restores its last size and position when it opens.
 
-Shortcut `Command + W` menyembunyikan widget. Jalankan aplikasinya lagi dari `~/Applications/Kanban Sticky.app` untuk menampilkannya kembali.
+`Command + W` hides the widget. Launch `~/Applications/Kanban Sticky.app` to show it again.
+
+The More menu switches between English and Bahasa Indonesia. English is the default.
 
 ## Menu bar
 
-Ikon checklist di menu bar dapat digunakan untuk menampilkan atau menyembunyikan widget, membuka input task berdasarkan status, melihat jumlah task, dan keluar dari aplikasi.
+The checklist icon in the menu bar can show or hide the widget, open a new task form for a status, display task counts, or quit the app.
 
-Kanban Sticky otomatis membuat Login Agent saat pertama kali dijalankan. Setelah itu aplikasi terbuka otomatis setiap kali pengguna login ke macOS dan langsung tersedia di menu bar.
+Kanban Sticky creates a Login Agent on first launch so it opens when you log in to macOS.
 
-## Membuat installer
+## Create the installer
 
-Jalankan `./create-installer.sh`. Installer DMG akan dibuat di folder `dist` dan berisi aplikasi beserta shortcut ke folder Applications.
+Run `./create-installer.sh` to create a DMG in `dist`. The DMG contains the app and a shortcut to the Applications folder.
 
 ## Preview
 
-Capture yang tersedia di folder `docs/`:
+![Transparent compact theme with desktop background](docs/kanban-sticky-transparent-desktop-compact.png)
 
-![Tema transparan compact dengan latar desktop](docs/kanban-sticky-transparent-desktop-compact.png)
+![Transparent wide theme with desktop background](docs/kanban-sticky-transparent-desktop.png)
 
-![Tema transparan wide dengan latar desktop](docs/kanban-sticky-transparent-desktop.png)
-
-[Lihat video walkthrough sample](docs/kanban-sticky-walkthrough-sample-crop.mov)
+[View the sample walkthrough video](docs/kanban-sticky-walkthrough-sample-crop.mov)

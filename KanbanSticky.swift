@@ -1,12 +1,45 @@
 import AppKit
 import SwiftUI
 
+enum AppLanguage: String, CaseIterable, Identifiable {
+    case english = "en"
+    case indonesian = "id"
+
+    var id: String { rawValue }
+
+    var displayName: String {
+        switch self {
+        case .english: return "English"
+        case .indonesian: return "Bahasa Indonesia"
+        }
+    }
+
+    static var current: AppLanguage {
+        AppLanguage(rawValue: UserDefaults.standard.string(forKey: "kanbanSticky.language") ?? "en") ?? .english
+    }
+}
+
+private func localizedText(_ english: String, _ indonesian: String, language: AppLanguage) -> String {
+    language == .indonesian ? indonesian : english
+}
+
 enum TaskStatus: String, CaseIterable, Codable, Identifiable {
     case todo = "Todo"
     case progress = "Progress"
     case done = "Done"
 
     var id: String { rawValue }
+
+    func localizedName(for language: AppLanguage) -> String {
+        switch (self, language) {
+        case (.todo, .english): return "Todo"
+        case (.progress, .english): return "Progress"
+        case (.done, .english): return "Done"
+        case (.todo, .indonesian): return "Todo"
+        case (.progress, .indonesian): return "Proses"
+        case (.done, .indonesian): return "Selesai"
+        }
+    }
 
     var icon: String {
         switch self {
@@ -45,9 +78,9 @@ final class TaskStore: ObservableObject {
             tasks = decoded
         } else {
             tasks = [
-                KanbanTask(title: "Review rencana hari ini", status: .todo),
-                KanbanTask(title: "Kerjakan prioritas utama", status: .progress),
-                KanbanTask(title: "Setup Kanban Sticky", status: .done)
+                KanbanTask(title: "Review today's plan", status: .todo),
+                KanbanTask(title: "Work on top priority", status: .progress),
+                KanbanTask(title: "Set up Kanban Sticky", status: .done)
             ]
         }
         projectCatalog = UserDefaults.standard.stringArray(forKey: projectStorageKey) ?? []
@@ -207,6 +240,7 @@ private enum NoteTheme: String, CaseIterable, Identifiable {
 
 struct ContentView: View {
     @ObservedObject var store: TaskStore
+    @AppStorage("kanbanSticky.language") private var languageRaw = AppLanguage.english.rawValue
     @AppStorage("kanbanSticky.selectedStatus") private var selectedRaw = TaskStatus.todo.rawValue
     @AppStorage("kanbanSticky.theme") private var themeRaw = NoteTheme.ocean.rawValue
     @AppStorage("kanbanSticky.transparentBackground") private var transparentBackground = false
@@ -239,6 +273,10 @@ struct ContentView: View {
 
     private var theme: NoteTheme {
         NoteTheme(rawValue: themeRaw) ?? .ocean
+    }
+
+    private var language: AppLanguage {
+        AppLanguage(rawValue: languageRaw) ?? .english
     }
 
     private var visibleTasks: [KanbanTask] {
@@ -309,7 +347,7 @@ struct ContentView: View {
         VStack(alignment: .leading, spacing: 8) {
             HStack {
                 Image(systemName: "note.text")
-                Text("Notes")
+                Text(localizedText("Notes", "Catatan", language: language))
                     .font(.system(size: 14, weight: .bold, design: .rounded))
                 Spacer()
                 Button { withAnimation(.easeInOut(duration: 0.15)) { showNotesSearch.toggle() } } label: {
@@ -319,7 +357,9 @@ struct ContentView: View {
                         .background(.white.opacity(showNotesSearch ? 0.2 : 0.1), in: Circle())
                 }
                 .buttonStyle(.plain)
-                .help(showNotesSearch ? "Sembunyikan pencarian" : "Cari notes")
+                .help(showNotesSearch
+                      ? localizedText("Hide search", "Sembunyikan pencarian", language: language)
+                      : localizedText("Search notes", "Cari catatan", language: language))
                 Button { showNotes = false } label: {
                     Image(systemName: "xmark")
                         .font(.system(size: 10, weight: .bold))
@@ -327,7 +367,7 @@ struct ContentView: View {
                         .background(.white.opacity(0.12), in: Circle())
                 }
                 .buttonStyle(.plain)
-                .help("Sembunyikan notes")
+                .help(localizedText("Hide notes", "Sembunyikan catatan", language: language))
             }
             .padding(.horizontal, 12)
             .padding(.top, 10)
@@ -335,7 +375,7 @@ struct ContentView: View {
                 HStack(spacing: 6) {
                     Image(systemName: "magnifyingglass")
                         .foregroundStyle(.white.opacity(0.5))
-                    TextField("Cari notes…", text: $notesSearch)
+                    TextField(localizedText("Search notes…", "Cari catatan…", language: language), text: $notesSearch)
                         .textFieldStyle(.plain)
                         .font(.system(size: 12, design: .rounded))
                 }
@@ -434,7 +474,9 @@ struct ContentView: View {
             }
         }
         private var lines: [String] {
-            let all = text.isEmpty ? ["_Belum ada catatan_"] : text.components(separatedBy: "\n")
+            let all = text.isEmpty
+                ? [localizedText("_No notes yet_", "_Belum ada catatan_", language: .current)]
+                : text.components(separatedBy: "\n")
             let query = search.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
             return query.isEmpty ? all : all.filter { $0.lowercased().contains(query) }
         }
@@ -456,7 +498,6 @@ struct ContentView: View {
                                 store: store,
                                 projectFilter: selectedProjectRaw.isEmpty ? nil : selectedProjectRaw,
                                 onAddTask: { taskEditorStatus = status; showingTaskEditor = true },
-                                stacksCardActions: boardProxy.size.width < 900,
                                 gestureTargeted: targetStatus(at: dragLocation, width: boardProxy.size.width) == status,
                                 onTaskDragChanged: { task, location in
                                     draggedTask = task
@@ -515,7 +556,7 @@ struct ContentView: View {
                     .foregroundStyle(theme.background)
             }
             .buttonStyle(.plain)
-            .help("Sembunyikan widget")
+            .help(localizedText("Hide widget", "Sembunyikan widget", language: language))
 
             Button(action: toggleFold) {
                 Image(systemName: isFolded ? "chevron.down" : "chevron.up")
@@ -525,7 +566,9 @@ struct ContentView: View {
                     .foregroundStyle(Color.black.opacity(0.62))
             }
             .buttonStyle(.plain)
-            .help(isFolded ? "Buka widget" : "Lipat widget")
+            .help(isFolded
+                  ? localizedText("Expand widget", "Buka widget", language: language)
+                  : localizedText("Fold widget", "Lipat widget", language: language))
 
             ZStack {
                 NativeWindowDragHandle()
@@ -544,7 +587,9 @@ struct ContentView: View {
                             .background(.white.opacity(showNotes ? 0.2 : 0.1), in: Circle())
                     }
                     .buttonStyle(.plain)
-                    .help(showNotes ? "Sembunyikan notes" : "Tampilkan notes")
+                    .help(showNotes
+                          ? localizedText("Hide notes", "Sembunyikan catatan", language: language)
+                          : localizedText("Show notes", "Tampilkan catatan", language: language))
                     Button {
                         taskEditorStatus = selectedStatus
                         showingTaskEditor = true
@@ -555,10 +600,10 @@ struct ContentView: View {
                             .background(.white.opacity(0.1), in: Circle())
                     }
                     .buttonStyle(.plain)
-                    .help("Tambah task")
+                    .help(localizedText("Add task", "Tambah task", language: language))
                     Menu {
-                        Button("Semua project") { selectedProjectRaw = "" }
-                        Button("Kelola project…") { showingProjectManager = true }
+                        Button(localizedText("All projects", "Semua project", language: language)) { selectedProjectRaw = "" }
+                        Button(localizedText("Manage projects…", "Kelola project…", language: language)) { showingProjectManager = true }
                         if !store.projects.isEmpty { Divider() }
                         ForEach(store.projects, id: \.self) { project in
                             Button(project) { selectedProjectRaw = project }
@@ -569,11 +614,13 @@ struct ContentView: View {
                     }
                     .menuStyle(.borderlessButton)
                     .menuIndicator(.hidden)
-                    .help(selectedProjectRaw.isEmpty ? "Filter project" : "Project: \(selectedProjectRaw)")
+                    .help(selectedProjectRaw.isEmpty
+                          ? localizedText("Filter projects", "Filter project", language: language)
+                          : localizedText("Project: \(selectedProjectRaw)", "Project: \(selectedProjectRaw)", language: language))
                 }
             }
             .frame(maxWidth: .infinity, minHeight: 24, maxHeight: 24)
-            .help("Tarik untuk memindahkan widget")
+            .help(localizedText("Drag to move the widget", "Tarik untuk memindahkan widget", language: language))
 
             Menu {
                 ForEach(NoteTheme.allCases) { item in
@@ -584,9 +631,15 @@ struct ContentView: View {
                     }
                 }
                 Divider()
-                Toggle("Background transparan", isOn: $transparentBackground)
+                Picker(localizedText("Language", "Bahasa", language: language), selection: $languageRaw) {
+                    ForEach(AppLanguage.allCases) { item in
+                        Text(item.displayName).tag(item.rawValue)
+                    }
+                }
                 Divider()
-                Button("Keluar Kanban Sticky", role: .destructive) {
+                Toggle(localizedText("Transparent background", "Background transparan", language: language), isOn: $transparentBackground)
+                Divider()
+                Button(localizedText("Quit Kanban Sticky", "Keluar Kanban Sticky", language: language), role: .destructive) {
                     NSApplication.shared.terminate(nil)
                 }
             } label: {
@@ -615,7 +668,7 @@ struct ContentView: View {
                     HStack(spacing: 6) {
                         Image(systemName: status.icon)
                             .font(.system(size: 11, weight: .semibold))
-                        Text(status.rawValue)
+                        Text(status.localizedName(for: language))
                             .lineLimit(1)
                         Text("\(store.count(for: status))")
                             .font(.system(size: 10, weight: .bold, design: .rounded))
@@ -643,7 +696,9 @@ struct ContentView: View {
                 VStack(spacing: 10) {
                     Image(systemName: selectedStatus == .done ? "sparkles" : "tray")
                         .font(.system(size: 28, weight: .light))
-                    Text(selectedStatus == .done ? "Belum ada yang selesai" : "Kolom ini masih kosong")
+                    Text(selectedStatus == .done
+                         ? localizedText("Nothing completed yet", "Belum ada yang selesai", language: language)
+                         : localizedText("This column is empty", "Kolom ini masih kosong", language: language))
                         .font(.system(size: 13, weight: .medium, design: .rounded))
                 }
                 .foregroundStyle(.white.opacity(0.55))
@@ -675,13 +730,16 @@ struct ContentView: View {
             Image(systemName: "plus")
                 .font(.system(size: 12, weight: .bold))
                 .foregroundStyle(.white.opacity(0.62))
-            TextField("Tambah ke \(selectedStatus.rawValue)…", text: $newTask)
+            TextField(
+                localizedText("Add to \(selectedStatus.localizedName(for: language))…", "Tambah ke \(selectedStatus.localizedName(for: language))…", language: language),
+                text: $newTask
+            )
                 .textFieldStyle(.plain)
                 .font(.system(size: 13, weight: .medium, design: .rounded))
                 .focused($inputFocused)
                 .onSubmit(addTask)
-            Picker("Project", selection: $newTaskProject) {
-                Text("Project").tag("")
+            Picker(localizedText("Project", "Proyek", language: language), selection: $newTaskProject) {
+                Text(localizedText("Project", "Proyek", language: language)).tag("")
                 ForEach(store.projects, id: \.self) { Text($0).tag($0) }
             }
             .pickerStyle(.menu)
@@ -696,7 +754,7 @@ struct ContentView: View {
                     .background(.white.opacity(newTaskHasStartDate || newTaskHasEndDate ? 0.2 : 0.08), in: Circle())
             }
             .buttonStyle(.plain)
-            .help("Atur tanggal task")
+            .help(localizedText("Set task dates", "Atur tanggal task", language: language))
             .popover(isPresented: $showingNewTaskSchedule, arrowEdge: .bottom) {
                 DraftSchedulePicker(
                     hasStartDate: $newTaskHasStartDate,
@@ -727,7 +785,11 @@ struct ContentView: View {
     private var footer: some View {
         VStack(spacing: 7) {
             HStack {
-                Text("\(store.count(for: .done)) dari \(store.tasks.count) selesai")
+                Text(localizedText(
+                    "\(store.count(for: .done)) of \(store.tasks.count) completed",
+                    "\(store.count(for: .done)) dari \(store.tasks.count) selesai",
+                    language: language
+                ))
                 Spacer()
                 Text("\(Int(completion * 100))%")
                     .monospacedDigit()
@@ -796,36 +858,41 @@ struct ContentView: View {
 
 private struct ProjectManagerView: View {
     @ObservedObject var store: TaskStore
+    @AppStorage("kanbanSticky.language") private var languageRaw = AppLanguage.english.rawValue
     @Environment(\.dismiss) private var dismiss
     @State private var newProject = ""
     @State private var editingProject: String?
     @State private var editedName = ""
 
+    private var language: AppLanguage {
+        AppLanguage(rawValue: languageRaw) ?? .english
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack {
-                Text("Kelola project").font(.headline)
+                Text(localizedText("Manage projects", "Kelola project", language: language)).font(.headline)
                 Spacer()
-                Button("Selesai") { dismiss() }
+                Button(localizedText("Done", "Selesai", language: language)) { dismiss() }
             }
             HStack {
-                TextField("Nama project baru", text: $newProject)
+                TextField(localizedText("New project name", "Nama project baru", language: language), text: $newProject)
                     .textFieldStyle(.roundedBorder)
-                Button("Tambah") { store.addProject(newProject); newProject = "" }
+                Button(localizedText("Add", "Tambah", language: language)) { store.addProject(newProject); newProject = "" }
                     .disabled(newProject.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
             }
             List {
                 ForEach(store.projects, id: \.self) { project in
                     HStack {
                         if editingProject == project {
-                            TextField("Project", text: $editedName)
+                            TextField(localizedText("Project", "Proyek", language: language), text: $editedName)
                                 .onSubmit { commitEdit(project) }
-                            Button("Simpan") { commitEdit(project) }
+                            Button(localizedText("Save", "Simpan", language: language)) { commitEdit(project) }
                         } else {
                             Label(project, systemImage: "folder")
                             Spacer()
-                            Button("Edit") { editingProject = project; editedName = project }
-                            Button("Hapus", role: .destructive) { store.deleteProject(project) }
+                            Button(localizedText("Edit", "Edit", language: language)) { editingProject = project; editedName = project }
+                            Button(localizedText("Delete", "Hapus", language: language), role: .destructive) { store.deleteProject(project) }
                         }
                     }
                 }
@@ -846,6 +913,7 @@ private struct ProjectManagerView: View {
 
 private struct TaskEditorView: View {
     @ObservedObject var store: TaskStore
+    @AppStorage("kanbanSticky.language") private var languageRaw = AppLanguage.english.rawValue
     let task: KanbanTask?
     let initialStatus: TaskStatus
     @Environment(\.dismiss) private var dismiss
@@ -854,6 +922,10 @@ private struct TaskEditorView: View {
     @State private var status: TaskStatus
     @State private var startDate: Date?
     @State private var endDate: Date?
+
+    private var language: AppLanguage {
+        AppLanguage(rawValue: languageRaw) ?? .english
+    }
 
     init(store: TaskStore, task: KanbanTask? = nil, initialStatus: TaskStatus = .todo) {
         self.store = store; self.task = task; self.initialStatus = initialStatus
@@ -866,16 +938,33 @@ private struct TaskEditorView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text(task == nil ? "Tambah task" : "Edit task").font(.headline)
-            TextField("Judul task", text: $title).textFieldStyle(.roundedBorder)
-            Picker("Project", selection: $project) {
-                Text("Tanpa project").tag("")
+            Text(task == nil
+                 ? localizedText("Add task", "Tambah task", language: language)
+                 : localizedText("Edit task", "Edit task", language: language))
+                .font(.headline)
+            TextField(localizedText("Task title", "Judul task", language: language), text: $title)
+                .textFieldStyle(.roundedBorder)
+            Picker(localizedText("Project", "Proyek", language: language), selection: $project) {
+                Text(localizedText("No project", "Tanpa project", language: language)).tag("")
                 ForEach(store.projects, id: \.self) { Text($0).tag($0) }
             }
-            Picker("Status", selection: $status) { ForEach(TaskStatus.allCases) { Text($0.rawValue).tag($0) } }
-            HStack { DatePicker("Mulai", selection: Binding(get: { startDate ?? Date() }, set: { startDate = $0 }), displayedComponents: .date); Toggle("Aktif", isOn: Binding(get: { startDate != nil }, set: { if !$0 { startDate = nil } else if startDate == nil { startDate = Date() } })) }
-            HStack { DatePicker("Selesai", selection: Binding(get: { endDate ?? Date() }, set: { endDate = $0 }), displayedComponents: .date); Toggle("Aktif", isOn: Binding(get: { endDate != nil }, set: { if !$0 { endDate = nil } else if endDate == nil { endDate = Date() } })) }
-            HStack { Spacer(); Button("Batal") { dismiss() }; Button("Simpan") { save() }.keyboardShortcut(.return) }
+            Picker(localizedText("Status", "Status", language: language), selection: $status) {
+                ForEach(TaskStatus.allCases) { Text($0.localizedName(for: language)).tag($0) }
+            }
+            HStack {
+                DatePicker(localizedText("Start", "Mulai", language: language), selection: Binding(get: { startDate ?? Date() }, set: { startDate = $0 }), displayedComponents: .date)
+                Toggle(localizedText("Enabled", "Aktif", language: language), isOn: Binding(get: { startDate != nil }, set: { if !$0 { startDate = nil } else if startDate == nil { startDate = Date() } }))
+            }
+            HStack {
+                DatePicker(localizedText("End", "Selesai", language: language), selection: Binding(get: { endDate ?? Date() }, set: { endDate = $0 }), displayedComponents: .date)
+                Toggle(localizedText("Enabled", "Aktif", language: language), isOn: Binding(get: { endDate != nil }, set: { if !$0 { endDate = nil } else if endDate == nil { endDate = Date() } }))
+            }
+            HStack {
+                Spacer()
+                Button(localizedText("Cancel", "Batal", language: language)) { dismiss() }
+                Button(localizedText("Save", "Simpan", language: language)) { save() }
+                    .keyboardShortcut(.return)
+            }
         }.padding(20).frame(width: 430)
     }
     private func save() { guard !title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }; if let task { store.rename(task, to: title); store.move(task, to: status); store.setProject(for: task, project: project); store.setSchedule(for: task, startDate: startDate, endDate: endDate) } else { store.add(title, to: status, project: project, startDate: startDate, endDate: endDate) }; dismiss() }
@@ -884,10 +973,10 @@ private struct TaskEditorView: View {
 private struct TaskRow: View {
     let task: KanbanTask
     @ObservedObject var store: TaskStore
+    @AppStorage("kanbanSticky.language") private var languageRaw = AppLanguage.english.rawValue
     var onDragChanged: ((CGPoint) -> Void)? = nil
     var onDragEnded: ((CGPoint) -> Void)? = nil
     var onVerticalReorder: ((Bool) -> Void)? = nil
-    var stackActionsBelow: Bool = false
     @State private var hovering = false
     @State private var showingSchedule = false
     @State private var isEditing = false
@@ -896,10 +985,11 @@ private struct TaskRow: View {
     @State private var lastSwapTranslation: CGFloat = 0
     @State private var verticalDragDirection: Int = 0
     @State private var editedTitle = ""
-    @State private var rowWidth: CGFloat = 400
     @FocusState private var titleFieldFocused: Bool
 
-    private var usesStackedActions: Bool { stackActionsBelow || rowWidth < 285 }
+    private var language: AppLanguage {
+        AppLanguage(rawValue: languageRaw) ?? .english
+    }
 
     var body: some View {
         HStack(alignment: .top, spacing: 8) {
@@ -911,11 +1001,13 @@ private struct TaskRow: View {
                     .foregroundStyle(task.status == .done ? .white : .white.opacity(0.65))
             }
             .buttonStyle(.plain)
-            .help(task.status == .done ? "Kembalikan ke Todo" : "Tandai selesai")
+            .help(task.status == .done
+                  ? localizedText("Move back to Todo", "Kembalikan ke Todo", language: language)
+                  : localizedText("Mark as done", "Tandai selesai", language: language))
 
             VStack(alignment: .leading, spacing: 4) {
                 if isEditing {
-                    TextField("Judul task", text: $editedTitle)
+                    TextField(localizedText("Task title", "Judul task", language: language), text: $editedTitle)
                         .textFieldStyle(.plain)
                         .font(.system(size: 13, weight: .regular, design: .rounded))
                         .focused($titleFieldFocused)
@@ -931,7 +1023,7 @@ private struct TaskRow: View {
                         .foregroundStyle(.white.opacity(task.status == .done ? 0.62 : 0.95))
                         .fixedSize(horizontal: false, vertical: true)
                         .onTapGesture(count: 2, perform: beginEditing)
-                        .help("Double-click untuk edit")
+                        .help(localizedText("Double-click to edit", "Double-click untuk edit", language: language))
                 }
 
                 if let project = task.project, !project.isEmpty {
@@ -950,7 +1042,7 @@ private struct TaskRow: View {
                     .foregroundStyle(.white.opacity(0.58))
                 }
 
-                if hovering && !isEditing && usesStackedActions {
+                if hovering && !isEditing {
                     actionButtons
                         .frame(maxWidth: .infinity, alignment: .trailing)
                         .padding(.top, 2)
@@ -969,11 +1061,6 @@ private struct TaskRow: View {
                     },
                 including: isEditing ? .none : .all
             )
-
-            if hovering && !isEditing && !usesStackedActions {
-                actionButtons
-                .transition(.opacity.combined(with: .move(edge: .trailing)))
-            }
         }
         .padding(.horizontal, 9)
         .padding(.vertical, 5)
@@ -991,7 +1078,7 @@ private struct TaskRow: View {
                     .fill(.white.opacity(0.001))
                     .frame(width: 18)
                     .contentShape(Rectangle())
-                    .help("Tahan garis untuk mengatur urutan vertikal")
+                    .help(localizedText("Hold the line to reorder vertically", "Tahan garis untuk mengatur urutan vertikal", language: language))
                     .highPriorityGesture(
                         DragGesture(minimumDistance: 2)
                         .onChanged { value in
@@ -1032,14 +1119,6 @@ private struct TaskRow: View {
         .onHover { isHovering in
             withAnimation(.easeOut(duration: 0.14)) { hovering = isHovering }
         }
-        .background {
-            GeometryReader { proxy in
-                Color.clear.preference(key: TaskRowWidthPreferenceKey.self, value: proxy.size.width)
-            }
-        }
-        .onPreferenceChange(TaskRowWidthPreferenceKey.self) { width in
-            rowWidth = width
-        }
         .popover(isPresented: $showingSchedule, arrowEdge: .trailing) {
             TaskScheduleEditor(task: task, store: store)
         }
@@ -1047,10 +1126,10 @@ private struct TaskRow: View {
             TaskEditorView(store: store, task: task)
         }
         .contextMenu {
-            Button("Edit judul") { beginEditing() }
-            Button("Atur tanggal…") { showingSchedule = true }
+            Button(localizedText("Edit title", "Edit judul", language: language)) { beginEditing() }
+            Button(localizedText("Set dates…", "Atur tanggal…", language: language)) { showingSchedule = true }
             if task.startDate != nil || task.endDate != nil {
-                Button("Hapus jadwal") {
+                Button(localizedText("Remove schedule", "Hapus jadwal", language: language)) {
                     store.setSchedule(for: task, startDate: nil, endDate: nil)
                 }
             }
@@ -1092,15 +1171,15 @@ private struct TaskRow: View {
         case let (start?, end?):
             return "\(start.formatted(format)) – \(end.formatted(format))"
         case let (start?, nil):
-            return "Mulai \(start.formatted(format))"
+            return localizedText("Starts \(start.formatted(format))", "Mulai \(start.formatted(format))", language: language)
         case let (nil, end?):
-            return "Selesai \(end.formatted(format))"
+            return localizedText("Ends \(end.formatted(format))", "Selesai \(end.formatted(format))", language: language)
         case (nil, nil):
             return ""
         }
     }
 
-    private func actionButton(_ icon: String, action: @escaping () -> Void) -> some View {
+    private func actionButton(_ icon: String, help: String? = nil, action: @escaping () -> Void) -> some View {
         Button(action: action) {
             Image(systemName: icon)
                 .font(.system(size: 9, weight: .bold))
@@ -1108,11 +1187,13 @@ private struct TaskRow: View {
                 .background(.black.opacity(0.13), in: Circle())
         }
         .buttonStyle(.plain)
+        .help(help ?? "")
     }
 
     private var actionButtons: some View {
         HStack(spacing: 6) {
             actionButton("pencil") { beginEditing() }
+            actionButton("doc.on.doc", help: localizedText("Copy task and project", "Salin task dan project", language: language)) { copyTaskDetails() }
             actionButton(task.startDate != nil || task.endDate != nil ? "calendar.badge.clock" : "calendar") {
                 showingSchedule = true
             }
@@ -1129,23 +1210,33 @@ private struct TaskRow: View {
             actionButton("trash") { store.remove(task) }
         }
     }
-}
 
-private struct TaskRowWidthPreferenceKey: PreferenceKey {
-    static var defaultValue: CGFloat = 400
-    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
-        value = nextValue()
+    private func copyTaskDetails() {
+        let project = task.project?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let projectName = project?.isEmpty == false
+            ? project!
+            : localizedText("No project", "Tanpa project", language: language)
+        let text = language == .indonesian
+            ? "Tugas: \(task.title)\nProyek: \(projectName)"
+            : "Task: \(task.title)\nProject: \(projectName)"
+        NSPasteboard.general.clearContents()
+        NSPasteboard.general.setString(text, forType: .string)
     }
 }
 
 private struct TaskScheduleEditor: View {
     let task: KanbanTask
     @ObservedObject var store: TaskStore
+    @AppStorage("kanbanSticky.language") private var languageRaw = AppLanguage.english.rawValue
     @Environment(\.dismiss) private var dismiss
     @State private var hasStartDate: Bool
     @State private var hasEndDate: Bool
     @State private var startDate: Date
     @State private var endDate: Date
+
+    private var language: AppLanguage {
+        AppLanguage(rawValue: languageRaw) ?? .english
+    }
 
     init(task: KanbanTask, store: TaskStore) {
         self.task = task
@@ -1158,19 +1249,27 @@ private struct TaskScheduleEditor: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
-            Text("Jadwal Task")
+            Text(localizedText("Task schedule", "Jadwal task", language: language))
                 .font(.system(size: 15, weight: .bold, design: .rounded))
             Text(task.title)
                 .font(.system(size: 12, weight: .regular, design: .rounded))
                 .foregroundStyle(.secondary)
                 .lineLimit(2)
 
-            scheduleRow(title: "Tanggal mulai", isEnabled: $hasStartDate, date: $startDate)
-            scheduleRow(title: "Tanggal selesai", isEnabled: $hasEndDate, date: $endDate)
+            scheduleRow(
+                title: localizedText("Start date", "Tanggal mulai", language: language),
+                isEnabled: $hasStartDate,
+                date: $startDate
+            )
+            scheduleRow(
+                title: localizedText("End date", "Tanggal selesai", language: language),
+                isEnabled: $hasEndDate,
+                date: $endDate
+            )
 
             HStack {
                 if task.startDate != nil || task.endDate != nil {
-                    Button("Hapus") {
+                    Button(localizedText("Remove", "Hapus", language: language)) {
                         store.setSchedule(for: task, startDate: nil, endDate: nil)
                         dismiss()
                     }
@@ -1178,8 +1277,8 @@ private struct TaskScheduleEditor: View {
                     .foregroundStyle(.red)
                 }
                 Spacer()
-                Button("Batal") { dismiss() }
-                Button("Simpan") { save() }
+                Button(localizedText("Cancel", "Batal", language: language)) { dismiss() }
+                Button(localizedText("Save", "Simpan", language: language)) { save() }
                     .keyboardShortcut(.defaultAction)
             }
         }
@@ -1217,9 +1316,9 @@ private struct TaskScheduleEditor: View {
 private struct KanbanColumn: View {
     let status: TaskStatus
     @ObservedObject var store: TaskStore
+    @AppStorage("kanbanSticky.language") private var languageRaw = AppLanguage.english.rawValue
     let projectFilter: String?
     let onAddTask: () -> Void
-    let stacksCardActions: Bool
     let gestureTargeted: Bool
     let onTaskDragChanged: (KanbanTask, CGPoint) -> Void
     let onTaskDragEnded: (KanbanTask, CGPoint) -> Void
@@ -1233,6 +1332,10 @@ private struct KanbanColumn: View {
     @State private var showingDraftSchedule = false
     @State private var nativeTargeted = false
 
+    private var language: AppLanguage {
+        AppLanguage(rawValue: languageRaw) ?? .english
+    }
+
     private var tasks: [KanbanTask] {
         store.tasks.filter { $0.status == status && (projectFilter == nil || $0.project == projectFilter) }
     }
@@ -1242,7 +1345,7 @@ private struct KanbanColumn: View {
             HStack(spacing: 7) {
                 Image(systemName: status.icon)
                     .font(.system(size: 12, weight: .semibold))
-                Text(status.rawValue)
+                Text(status.localizedName(for: language))
                     .font(.system(size: 13, weight: .bold, design: .rounded))
                 Spacer()
                 Text("\(tasks.count)")
@@ -1257,7 +1360,11 @@ private struct KanbanColumn: View {
                         .background(.white.opacity(0.12), in: Circle())
                 }
                 .buttonStyle(.plain)
-                .help("Tambah task ke \(status.rawValue)")
+                .help(localizedText(
+                    "Add a task to \(status.localizedName(for: .english))",
+                    "Tambah task ke \(status.localizedName(for: .indonesian))",
+                    language: language
+                ))
             }
             .padding(.horizontal, 3)
 
@@ -1266,7 +1373,7 @@ private struct KanbanColumn: View {
                     VStack(spacing: 9) {
                         Image(systemName: "tray")
                             .font(.system(size: 23, weight: .light))
-                        Text("Tarik task ke sini")
+                        Text(localizedText("Drop a task here", "Tarik task ke sini", language: language))
                             .font(.system(size: 11, weight: .medium, design: .rounded))
                     }
                     .foregroundStyle(.white.opacity(0.46))
@@ -1280,8 +1387,7 @@ private struct KanbanColumn: View {
                                     store: store,
                                     onDragChanged: { onTaskDragChanged(task, $0) },
                                     onDragEnded: { onTaskDragEnded(task, $0) },
-                                    onVerticalReorder: { onTaskReorder(task, $0) },
-                                    stackActionsBelow: stacksCardActions
+                                    onVerticalReorder: { onTaskReorder(task, $0) }
                                 )
                             }
                         }
@@ -1336,23 +1442,36 @@ private struct KanbanColumn: View {
 }
 
 private struct DraftSchedulePicker: View {
+    @AppStorage("kanbanSticky.language") private var languageRaw = AppLanguage.english.rawValue
     @Binding var hasStartDate: Bool
     @Binding var hasEndDate: Bool
     @Binding var startDate: Date
     @Binding var endDate: Date
     @Environment(\.dismiss) private var dismiss
 
+    private var language: AppLanguage {
+        AppLanguage(rawValue: languageRaw) ?? .english
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
-            Text("Tanggal Task Baru")
+            Text(localizedText("New task dates", "Tanggal task baru", language: language))
                 .font(.system(size: 15, weight: .bold, design: .rounded))
 
-            dateRow(title: "Tanggal mulai", isEnabled: $hasStartDate, date: $startDate)
-            dateRow(title: "Tanggal selesai", isEnabled: $hasEndDate, date: $endDate)
+            dateRow(
+                title: localizedText("Start date", "Tanggal mulai", language: language),
+                isEnabled: $hasStartDate,
+                date: $startDate
+            )
+            dateRow(
+                title: localizedText("End date", "Tanggal selesai", language: language),
+                isEnabled: $hasEndDate,
+                date: $endDate
+            )
 
             HStack {
                 if hasStartDate || hasEndDate {
-                    Button("Reset") {
+                    Button(localizedText("Reset", "Reset", language: language)) {
                         hasStartDate = false
                         hasEndDate = false
                     }
@@ -1360,7 +1479,7 @@ private struct DraftSchedulePicker: View {
                     .foregroundStyle(.red)
                 }
                 Spacer()
-                Button("Terapkan") {
+                Button(localizedText("Apply", "Terapkan", language: language)) {
                     if hasStartDate && hasEndDate && endDate < startDate {
                         endDate = startDate
                     }
@@ -1420,6 +1539,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private var statusItem: NSStatusItem!
     private let store = TaskStore()
 
+    private var language: AppLanguage { .current }
+
     func applicationDidFinishLaunching(_ notification: Notification) {
         configureApplicationMenu()
         let content = ContentView(store: store)
@@ -1473,7 +1594,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
         let appMenuItem = NSMenuItem()
         let appMenu = NSMenu(title: "Kanban Sticky")
-        appMenu.addItem(menuItem("Keluar Kanban Sticky", action: #selector(quitApp), key: "q"))
+        appMenu.addItem(menuItem(
+            localizedText("Quit Kanban Sticky", "Keluar Kanban Sticky", language: language),
+            action: #selector(quitApp),
+            key: "q"
+        ))
         appMenuItem.submenu = appMenu
         mainMenu.addItem(appMenuItem)
 
@@ -1523,36 +1648,60 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         menu.removeAllItems()
 
         let toggleTitle = window.isVisible
-            ? "Sembunyikan Widget"
-            : "Tampilkan Widget"
+            ? localizedText("Hide widget", "Sembunyikan widget", language: language)
+            : localizedText("Show widget", "Tampilkan widget", language: language)
         menu.addItem(menuItem(toggleTitle, action: #selector(toggleWidget), key: "k"))
 
-        let addItem = NSMenuItem(title: "Task Baru", action: nil, keyEquivalent: "")
+        let addItem = NSMenuItem(
+            title: localizedText("New task", "Task baru", language: language),
+            action: nil,
+            keyEquivalent: ""
+        )
         let addMenu = NSMenu()
-        addMenu.addItem(menuItem("Ke Todo", action: #selector(newTodo)))
-        addMenu.addItem(menuItem("Ke Progress", action: #selector(newProgress)))
-        addMenu.addItem(menuItem("Ke Done", action: #selector(newDone)))
+        addMenu.addItem(menuItem(
+            localizedText("To Todo", "Ke Todo", language: language),
+            action: #selector(newTodo)
+        ))
+        addMenu.addItem(menuItem(
+            localizedText("To Progress", "Ke Progress", language: language),
+            action: #selector(newProgress)
+        ))
+        addMenu.addItem(menuItem(
+            localizedText("To Done", "Ke Done", language: language),
+            action: #selector(newDone)
+        ))
         addItem.submenu = addMenu
         menu.addItem(addItem)
 
         menu.addItem(.separator())
         for status in TaskStatus.allCases {
             let item = NSMenuItem(
-                title: "\(status.rawValue)   \(store.count(for: status))",
+                title: "\(status.localizedName(for: language))   \(store.count(for: status))",
                 action: nil,
                 keyEquivalent: ""
             )
-            item.image = NSImage(systemSymbolName: status.icon, accessibilityDescription: status.rawValue)
+            item.image = NSImage(
+                systemSymbolName: status.icon,
+                accessibilityDescription: status.localizedName(for: language)
+            )
             item.isEnabled = false
             menu.addItem(item)
         }
 
         menu.addItem(.separator())
-        let loginItem = NSMenuItem(title: "Jalankan saat Login", action: nil, keyEquivalent: "")
+        let loginItem = NSMenuItem(
+            title: localizedText("Run at login", "Jalankan saat login", language: language),
+            action: nil,
+            keyEquivalent: ""
+        )
         loginItem.state = launchAgentExists ? .on : .off
         loginItem.isEnabled = false
         menu.addItem(loginItem)
-        menu.addItem(menuItem("Keluar Kanban Sticky", action: #selector(quitApp), key: "q"))
+        menu.addItem(menuItem(
+            localizedText("Quit Kanban Sticky", "Keluar Kanban Sticky", language: language),
+            action: #selector(quitApp),
+            key: "q"
+        ))
     }
 
     private var launchAgentURL: URL? {
