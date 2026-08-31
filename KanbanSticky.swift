@@ -681,8 +681,10 @@ struct ContentView: View {
                     .padding(.vertical, 6)
                     .background(status == selectedStatus ? .white.opacity(0.18) : .clear,
                                 in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+                    .contentShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
                 }
                 .buttonStyle(.plain)
+                .frame(maxWidth: .infinity)
             }
         }
         .padding(3)
@@ -985,6 +987,7 @@ private struct TaskRow: View {
     @State private var lastSwapTranslation: CGFloat = 0
     @State private var verticalDragDirection: Int = 0
     @State private var editedTitle = ""
+    @State private var copyFeedbackVisible = false
     @FocusState private var titleFieldFocused: Bool
 
     private var language: AppLanguage {
@@ -1047,6 +1050,17 @@ private struct TaskRow: View {
                         .frame(maxWidth: .infinity, alignment: .trailing)
                         .padding(.top, 2)
                         .transition(.opacity.combined(with: .move(edge: .top)))
+                }
+
+                if copyFeedbackVisible {
+                    Label(
+                        localizedText("Copied", "Tersalin", language: language),
+                        systemImage: "checkmark.circle.fill"
+                    )
+                    .font(.system(size: 10, weight: .semibold, design: .rounded))
+                    .foregroundStyle(.green.opacity(0.9))
+                    .frame(maxWidth: .infinity, alignment: .trailing)
+                    .transition(.opacity.combined(with: .move(edge: .top)))
                 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -1220,7 +1234,15 @@ private struct TaskRow: View {
             ? "Tugas: \(task.title)\nProyek: \(projectName)"
             : "Task: \(task.title)\nProject: \(projectName)"
         NSPasteboard.general.clearContents()
-        NSPasteboard.general.setString(text, forType: .string)
+        guard NSPasteboard.general.setString(text, forType: .string) else { return }
+        withAnimation(.easeOut(duration: 0.15)) {
+            copyFeedbackVisible = true
+        }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
+            withAnimation(.easeIn(duration: 0.15)) {
+                copyFeedbackVisible = false
+            }
+        }
     }
 }
 
