@@ -1,0 +1,11 @@
+.DS_Store
+build/
+.build/
+DerivedData/
+*.xcodeproj/xcuserdata/
+*.xcworkspace/xcuserdata/
+*.xcuserstate
+Kanban Sticky.app/
+dist/
+*.log
+*.tmp
