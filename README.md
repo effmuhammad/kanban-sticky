@@ -34,6 +34,10 @@ Tema normal:
 
 ![Kanban Sticky tema normal](docs/kanban-sticky-theme-normal.jpeg)
 
+Tampilan Kanban:
+
+![Kanban Sticky board](docs/01-kanban-board.jpeg)
+
 Tema transparan:
 
 ![Kanban Sticky tema transparan](docs/kanban-sticky-theme-transparent.jpeg)
