@@ -27,3 +27,17 @@ Kanban Sticky otomatis membuat Login Agent saat pertama kali dijalankan. Setelah
 ## Membuat installer
 
 Jalankan `./create-installer.sh`. Installer DMG akan dibuat di folder `dist` dan berisi aplikasi beserta shortcut ke folder Applications.
+
+## Preview
+
+Tema normal:
+
+![Kanban Sticky tema normal](docs/kanban-sticky-theme-normal.jpeg)
+
+Tema transparan:
+
+![Kanban Sticky tema transparan](docs/kanban-sticky-theme-transparent.jpeg)
+
+Video walkthrough:
+
+[Lihat video walkthrough Kanban Sticky](docs/kanban-sticky-walkthrough.mov)

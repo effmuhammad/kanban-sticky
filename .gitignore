@@ -9,3 +9,4 @@ Kanban Sticky.app/
 dist/
 *.log
 *.tmp
+docs/*backup*.plist
