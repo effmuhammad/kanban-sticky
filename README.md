@@ -45,3 +45,35 @@ Tema transparan:
 Video walkthrough:
 
 [Lihat video walkthrough Kanban Sticky](docs/kanban-sticky-walkthrough.mov)
+
+### Capture fitur dengan data contoh
+
+Capture berikut dibuat memakai data contoh sementara. Data pengguna dibackup sebelum proses capture dan dipulihkan kembali setelah selesai.
+
+Papan compact dan wide pada tema normal:
+
+![Papan compact tema normal](docs/kanban-sticky-normal-compact.png)
+
+![Papan tiga kolom tema normal](docs/kanban-sticky-normal-wide-sample.png)
+
+Notes dapat ditampilkan di samping kanban dan memiliki pencarian:
+
+![Notes terbuka](docs/kanban-sticky-notes-visible.png)
+
+![Pencarian Notes](docs/kanban-sticky-notes-search.png)
+
+Filter project dan daftar project terdaftar digunakan pada task contoh di walkthrough.
+
+Tema transparan mempertahankan latar desktop di belakang widget, pada beberapa ukuran:
+
+![Tema transparan compact](docs/kanban-sticky-transparent-compact-sample.png)
+
+![Tema transparan wide](docs/kanban-sticky-transparent-wide-sample.png)
+
+![Tema transparan dengan latar desktop](docs/kanban-sticky-transparent-desktop-compact.png)
+
+![Tema transparan wide dengan latar desktop](docs/kanban-sticky-transparent-desktop.png)
+
+Walkthrough interaktif (task contoh, toggle Notes, pencarian, resize, dan pergantian tema):
+
+[Lihat video walkthrough sample](docs/kanban-sticky-walkthrough-sample-crop.mov)
