@@ -23,6 +23,9 @@ private func localizedText(_ english: String, _ indonesian: String, language: Ap
     language == .indonesian ? indonesian : english
 }
 
+private let focusNotesSearchNotification = Notification.Name("KanbanStickyFocusNotesSearch")
+private let focusKanbanSearchNotification = Notification.Name("KanbanStickyFocusKanbanSearch")
+
 enum TaskStatus: String, CaseIterable, Codable, Identifiable {
     case todo = "Todo"
     case progress = "Progress"
@@ -247,6 +250,7 @@ struct ContentView: View {
     @AppStorage("kanbanSticky.selectedProject") private var selectedProjectRaw = ""
     @AppStorage("kanbanSticky.showNotes") private var showNotes = false
     @AppStorage("kanbanSticky.notesText") private var notesText = ""
+    @AppStorage("kanbanSticky.notesWidth") private var notesWidth = 320.0
     @State private var newTask = ""
     @State private var newTaskProject = ""
     @State private var newTaskHasStartDate = false
@@ -260,11 +264,15 @@ struct ContentView: View {
     @State private var notesEditing = false
     @State private var notesSearch = ""
     @State private var showNotesSearch = false
+    @State private var kanbanSearch = ""
+    @State private var showKanbanSearch = false
     @State private var draggedTask: KanbanTask?
     @State private var dragLocation: CGPoint?
     @State private var isFolded = false
     @State private var expandedWindowHeight: CGFloat = 560
     @FocusState private var inputFocused: Bool
+    @FocusState private var notesSearchFocused: Bool
+    @FocusState private var kanbanSearchFocused: Bool
 
     private var selectedStatus: TaskStatus {
         get { TaskStatus(rawValue: selectedRaw) ?? .todo }
@@ -280,11 +288,20 @@ struct ContentView: View {
     }
 
     private var visibleTasks: [KanbanTask] {
-        store.tasks.filter { $0.status == selectedStatus && projectMatches($0) }
+        store.tasks.filter {
+            $0.status == selectedStatus && projectMatches($0) && taskMatchesSearch($0)
+        }
     }
 
     private func projectMatches(_ task: KanbanTask) -> Bool {
         selectedProjectRaw.isEmpty || task.project == selectedProjectRaw
+    }
+
+    private func taskMatchesSearch(_ task: KanbanTask) -> Bool {
+        let query = kanbanSearch.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !query.isEmpty else { return true }
+        return task.title.localizedCaseInsensitiveContains(query)
+            || task.project?.localizedCaseInsensitiveContains(query) == true
     }
 
     private var completion: Double {
@@ -310,8 +327,9 @@ struct ContentView: View {
                                 }
                             }
                             if showNotes {
+                                notesDivider(totalWidth: proxy.size.width)
                                 notesPanel
-                                    .frame(width: proxy.size.width >= 760 ? 320 : 240)
+                                    .frame(width: notesPanelWidth(for: proxy.size.width))
                                     .transition(.move(edge: .trailing).combined(with: .opacity))
                             }
                         }
@@ -326,6 +344,12 @@ struct ContentView: View {
             }
         }
         .background(Color.clear)
+        .onReceive(NotificationCenter.default.publisher(for: focusNotesSearchNotification)) { _ in
+            focusNotesSearch()
+        }
+        .onReceive(NotificationCenter.default.publisher(for: focusKanbanSearchNotification)) { _ in
+            focusKanbanSearch()
+        }
         .sheet(isPresented: $showingProjectManager) {
             ProjectManagerView(store: store)
         }
@@ -337,10 +361,46 @@ struct ContentView: View {
     private var compactLayout: some View {
         VStack(spacing: 0) {
             statusPicker
+            if showKanbanSearch {
+                kanbanSearchBar
+            }
             taskList
             composer
             footer
         }
+    }
+
+    private func notesPanelWidth(for totalWidth: CGFloat) -> CGFloat {
+        let bounds = notesWidthBounds(for: totalWidth)
+        let defaultWidth: CGFloat = totalWidth >= 760 ? 320 : 240
+        let storedWidth = UserDefaults.standard.object(forKey: "kanbanSticky.notesWidth") == nil
+            ? defaultWidth
+            : CGFloat(notesWidth)
+        return min(max(storedWidth, bounds.lowerBound), bounds.upperBound)
+    }
+
+    private func notesWidthBounds(for totalWidth: CGFloat) -> ClosedRange<CGFloat> {
+        let minimum: CGFloat = 200
+        let maximum = max(minimum, min(520, totalWidth - 240))
+        return minimum...maximum
+    }
+
+    private func notesDivider(totalWidth: CGFloat) -> some View {
+        let bounds = notesWidthBounds(for: totalWidth)
+        return ZStack {
+            NotesResizeHandle(
+                width: $notesWidth,
+                minimumWidth: bounds.lowerBound,
+                maximumWidth: bounds.upperBound
+            )
+            Rectangle()
+                .fill(.white.opacity(0.28))
+                .frame(width: 1)
+                .allowsHitTesting(false)
+        }
+            .frame(width: 16)
+            .frame(maxHeight: .infinity)
+            .help(localizedText("Drag to resize Notes", "Tarik untuk mengubah lebar catatan", language: language))
     }
 
     private var notesPanel: some View {
@@ -378,6 +438,16 @@ struct ContentView: View {
                     TextField(localizedText("Search notes…", "Cari catatan…", language: language), text: $notesSearch)
                         .textFieldStyle(.plain)
                         .font(.system(size: 12, design: .rounded))
+                        .focused($notesSearchFocused)
+                    Button {
+                        showNotesSearch = false
+                        notesSearchFocused = false
+                    } label: {
+                        Image(systemName: "xmark.circle.fill")
+                            .foregroundStyle(.white.opacity(0.6))
+                    }
+                    .buttonStyle(.plain)
+                    .help(localizedText("Close note search", "Tutup pencarian catatan", language: language))
                 }
                 .padding(.horizontal, 10)
                 .padding(.vertical, 6)
@@ -389,9 +459,45 @@ struct ContentView: View {
         }
         .foregroundStyle(.white)
         .background(.black.opacity(0.14))
-        .overlay(alignment: .leading) {
-            Rectangle().fill(.white.opacity(0.2)).frame(width: 1)
+    }
+
+    private var kanbanSearchBar: some View {
+        HStack(spacing: 7) {
+            Image(systemName: "magnifyingglass")
+                .foregroundStyle(.white.opacity(0.55))
+            TextField(
+                localizedText("Search tasks or projects…", "Cari task atau project…", language: language),
+                text: $kanbanSearch
+            )
+            .textFieldStyle(.plain)
+            .font(.system(size: 12, design: .rounded))
+            .focused($kanbanSearchFocused)
+            if !kanbanSearch.isEmpty {
+                Button {
+                    kanbanSearch = ""
+                } label: {
+                    Image(systemName: "xmark.circle.fill")
+                        .foregroundStyle(.white.opacity(0.6))
+                }
+                .buttonStyle(.plain)
+            }
+            Button {
+                kanbanSearch = ""
+                showKanbanSearch = false
+                kanbanSearchFocused = false
+            } label: {
+                Image(systemName: "xmark")
+                    .font(.system(size: 10, weight: .bold))
+                    .foregroundStyle(.white.opacity(0.65))
+            }
+            .buttonStyle(.plain)
+            .help(localizedText("Hide task search", "Sembunyikan pencarian task", language: language))
         }
+        .padding(.horizontal, 10)
+        .padding(.vertical, 7)
+        .background(.black.opacity(0.12), in: RoundedRectangle(cornerRadius: 9, style: .continuous))
+        .padding(.horizontal, 12)
+        .padding(.top, 5)
     }
 
     private func noteFormatButton(_ icon: String, _ help: String, _ prefix: String) -> some View {
@@ -407,6 +513,31 @@ struct ContentView: View {
     private func insertNotePrefix(_ prefix: String) {
         if notesText.isEmpty || notesText.hasSuffix("\n") { notesText += prefix }
         else { notesText += "\n" + prefix }
+    }
+
+    private func focusNotesSearch() {
+        kanbanSearchFocused = false
+        if !showNotes { showNotes = true }
+        if !showNotesSearch {
+            withAnimation(.easeInOut(duration: 0.15)) {
+                showNotesSearch = true
+            }
+        }
+        DispatchQueue.main.async {
+            notesSearchFocused = true
+        }
+    }
+
+    private func focusKanbanSearch() {
+        notesSearchFocused = false
+        if !showKanbanSearch {
+            withAnimation(.easeInOut(duration: 0.15)) {
+                showKanbanSearch = true
+            }
+        }
+        DispatchQueue.main.async {
+            kanbanSearchFocused = true
+        }
     }
 
     private struct WYSIWYGNotesEditor: NSViewRepresentable {
@@ -490,6 +621,9 @@ struct ContentView: View {
     private var boardLayout: some View {
         GeometryReader { boardProxy in
             VStack(spacing: 0) {
+                if showKanbanSearch {
+                    kanbanSearchBar
+                }
                 ZStack(alignment: .topLeading) {
                     HStack(spacing: 12) {
                         ForEach(TaskStatus.allCases) { status in
@@ -497,6 +631,7 @@ struct ContentView: View {
                                 status: status,
                                 store: store,
                                 projectFilter: selectedProjectRaw.isEmpty ? nil : selectedProjectRaw,
+                                searchQuery: kanbanSearch,
                                 onAddTask: { taskEditorStatus = status; showingTaskEditor = true },
                                 gestureTargeted: targetStatus(at: dragLocation, width: boardProxy.size.width) == status,
                                 onTaskDragChanged: { task, location in
@@ -570,14 +705,29 @@ struct ContentView: View {
                   ? localizedText("Expand widget", "Buka widget", language: language)
                   : localizedText("Fold widget", "Lipat widget", language: language))
 
-            ZStack {
-                NativeWindowDragHandle()
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-                HStack(spacing: 10) {
+            HStack(spacing: 10) {
                     Text("Kanban Sticky")
                         .font(.system(size: 16, weight: .bold, design: .rounded))
                         .allowsHitTesting(false)
                     Spacer()
+                    Button {
+                        if showKanbanSearch {
+                            kanbanSearch = ""
+                            showKanbanSearch = false
+                            kanbanSearchFocused = false
+                        } else {
+                            focusKanbanSearch()
+                        }
+                    } label: {
+                        Image(systemName: showKanbanSearch ? "magnifyingglass.circle.fill" : "magnifyingglass")
+                            .font(.system(size: 12, weight: .semibold))
+                            .frame(width: 24, height: 24)
+                            .background(.white.opacity(showKanbanSearch ? 0.2 : 0.1), in: Circle())
+                    }
+                    .buttonStyle(.plain)
+                    .help(showKanbanSearch
+                          ? localizedText("Hide task search", "Sembunyikan pencarian task", language: language)
+                          : localizedText("Search tasks", "Cari task", language: language))
                     Button {
                         withAnimation(.easeInOut(duration: 0.2)) { showNotes.toggle() }
                     } label: {
@@ -617,7 +767,10 @@ struct ContentView: View {
                     .help(selectedProjectRaw.isEmpty
                           ? localizedText("Filter projects", "Filter project", language: language)
                           : localizedText("Project: \(selectedProjectRaw)", "Project: \(selectedProjectRaw)", language: language))
-                }
+            }
+            .background {
+                NativeWindowDragHandle()
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
             .frame(maxWidth: .infinity, minHeight: 24, maxHeight: 24)
             .help(localizedText("Drag to move the widget", "Tarik untuk memindahkan widget", language: language))
@@ -1340,6 +1493,7 @@ private struct KanbanColumn: View {
     @ObservedObject var store: TaskStore
     @AppStorage("kanbanSticky.language") private var languageRaw = AppLanguage.english.rawValue
     let projectFilter: String?
+    let searchQuery: String
     let onAddTask: () -> Void
     let gestureTargeted: Bool
     let onTaskDragChanged: (KanbanTask, CGPoint) -> Void
@@ -1359,7 +1513,13 @@ private struct KanbanColumn: View {
     }
 
     private var tasks: [KanbanTask] {
-        store.tasks.filter { $0.status == status && (projectFilter == nil || $0.project == projectFilter) }
+        let query = searchQuery.trimmingCharacters(in: .whitespacesAndNewlines)
+        return store.tasks.filter {
+            guard $0.status == status, projectFilter == nil || $0.project == projectFilter else { return false }
+            guard !query.isEmpty else { return true }
+            return $0.title.localizedCaseInsensitiveContains(query)
+                || $0.project?.localizedCaseInsensitiveContains(query) == true
+        }
     }
 
     var body: some View {
@@ -1547,6 +1707,76 @@ private final class NativeWindowDragNSView: NSView {
     }
 }
 
+private final class NotesResizeNSView: NSView {
+    var minimumWidth: CGFloat = 200
+    var maximumWidth: CGFloat = 520
+    var onResize: ((CGFloat) -> Void)?
+
+    private var dragStartX: CGFloat?
+    private var dragStartWidth: CGFloat?
+
+    override var mouseDownCanMoveWindow: Bool { false }
+
+    override func acceptsFirstMouse(for event: NSEvent?) -> Bool {
+        true
+    }
+
+    override func mouseDown(with event: NSEvent) {
+        dragStartX = event.locationInWindow.x
+        dragStartWidth = min(maximumWidth, max(minimumWidth, currentWidth))
+        NSCursor.resizeLeftRight.push()
+    }
+
+    override func mouseDragged(with event: NSEvent) {
+        guard let dragStartX, let dragStartWidth else { return }
+        let delta = event.locationInWindow.x - dragStartX
+        let resizedWidth = min(maximumWidth, max(minimumWidth, dragStartWidth - delta))
+        onResize?(resizedWidth)
+    }
+
+    override func mouseUp(with event: NSEvent) {
+        dragStartX = nil
+        dragStartWidth = nil
+        NSCursor.pop()
+    }
+
+    override func resetCursorRects() {
+        addCursorRect(bounds, cursor: .resizeLeftRight)
+    }
+
+    private var currentWidth: CGFloat {
+        // The representable updates this value before every interaction.
+        representedWidth
+    }
+
+    var representedWidth: CGFloat = 320
+}
+
+private struct NotesResizeHandle: NSViewRepresentable {
+    @Binding var width: Double
+    let minimumWidth: CGFloat
+    let maximumWidth: CGFloat
+
+    func makeNSView(context: Context) -> NotesResizeNSView {
+        let view = NotesResizeNSView()
+        view.minimumWidth = minimumWidth
+        view.maximumWidth = maximumWidth
+        view.representedWidth = CGFloat(width)
+        let binding = $width
+        view.onResize = { newWidth in
+            binding.wrappedValue = Double(newWidth)
+        }
+        return view
+    }
+
+    func updateNSView(_ nsView: NotesResizeNSView, context: Context) {
+        nsView.minimumWidth = minimumWidth
+        nsView.maximumWidth = maximumWidth
+        nsView.representedWidth = CGFloat(width)
+        nsView.window?.invalidateCursorRects(for: nsView)
+    }
+}
+
 private struct NativeWindowDragHandle: NSViewRepresentable {
     func makeNSView(context: Context) -> NSView {
         NativeWindowDragNSView()
@@ -1603,6 +1833,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         installLaunchAgent()
 
         NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
+            if event.modifierFlags.contains(.command), event.keyCode == 3 {
+                let notesVisible = UserDefaults.standard.bool(forKey: "kanbanSticky.showNotes")
+                NotificationCenter.default.post(
+                    name: notesVisible ? focusNotesSearchNotification : focusKanbanSearchNotification,
+                    object: nil
+                )
+                return nil
+            }
             if event.modifierFlags.contains(.command), event.keyCode == 13 {
                 self?.window.orderOut(nil)
                 return nil
