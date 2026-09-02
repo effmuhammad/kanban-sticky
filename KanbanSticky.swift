@@ -344,6 +344,7 @@ struct ContentView: View {
             }
         }
         .background(Color.clear)
+        .ignoresSafeArea()
         .onReceive(NotificationCenter.default.publisher(for: focusNotesSearchNotification)) { _ in
             focusNotesSearch()
         }
