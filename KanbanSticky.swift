@@ -886,14 +886,31 @@ struct ContentView: View {
             Image(systemName: "plus")
                 .font(.system(size: 12, weight: .bold))
                 .foregroundStyle(.white.opacity(0.62))
-            TextField(
-                localizedText("Add to \(selectedStatus.localizedName(for: language))…", "Tambah ke \(selectedStatus.localizedName(for: language))…", language: language),
-                text: $newTask
-            )
-                .textFieldStyle(.plain)
-                .font(.system(size: 13, weight: .medium, design: .rounded))
-                .focused($inputFocused)
-                .onSubmit(addTask)
+            ZStack(alignment: .topLeading) {
+                TextEditor(text: $newTask)
+                    .font(.system(size: 13, weight: .medium, design: .rounded))
+                    .scrollContentBackground(.hidden)
+                    .scrollIndicators(.hidden)
+                    .background(Color.clear)
+                    .padding(.top, 3)
+                    .focused($inputFocused)
+                if newTask.isEmpty {
+                    Text(localizedText(
+                        "Add to \(selectedStatus.localizedName(for: language))…",
+                        "Tambah ke \(selectedStatus.localizedName(for: language))…",
+                        language: language
+                    ))
+                    .font(.system(size: 13, weight: .medium, design: .rounded))
+                    .foregroundStyle(.white.opacity(0.45))
+                    .padding(.horizontal, 5)
+                    .padding(.vertical, 4)
+                    .allowsHitTesting(false)
+                }
+            }
+            // Keep the composer compact by default, then reveal a second line
+            // once the user explicitly inserts a line break. Additional lines
+            // continue scrolling inside the editor instead of expanding the card.
+            .frame(height: newTask.contains("\n") ? 44 : 24)
             Picker(localizedText("Project", "Proyek", language: language), selection: $newTaskProject) {
                 Text(localizedText("Project", "Proyek", language: language)).tag("")
                 ForEach(store.projects, id: \.self) { Text($0).tag($0) }
@@ -929,7 +946,7 @@ struct ContentView: View {
             .disabled(newTask.trimmingCharacters(in: .whitespaces).isEmpty)
         }
         .padding(.horizontal, 13)
-        .padding(.vertical, 10)
+        .padding(.vertical, 6)
         .background(.black.opacity(0.14), in: RoundedRectangle(cornerRadius: 13, style: .continuous))
         .overlay {
             RoundedRectangle(cornerRadius: 13, style: .continuous)
@@ -1098,8 +1115,23 @@ private struct TaskEditorView: View {
                  ? localizedText("Add task", "Tambah task", language: language)
                  : localizedText("Edit task", "Edit task", language: language))
                 .font(.headline)
-            TextField(localizedText("Task title", "Judul task", language: language), text: $title)
-                .textFieldStyle(.roundedBorder)
+            ZStack(alignment: .topLeading) {
+                TextEditor(text: $title)
+                    .font(.system(size: 13, design: .rounded))
+                    .scrollContentBackground(.hidden)
+                    .background(Color.clear)
+                if title.isEmpty {
+                    Text(localizedText("Task title", "Judul task", language: language))
+                        .font(.system(size: 13, design: .rounded))
+                        .foregroundStyle(.secondary)
+                        .padding(.horizontal, 5)
+                        .padding(.vertical, 7)
+                        .allowsHitTesting(false)
+                }
+            }
+            .frame(minHeight: 78, maxHeight: 120)
+            .padding(4)
+            .background(.quaternary, in: RoundedRectangle(cornerRadius: 6, style: .continuous))
             Picker(localizedText("Project", "Proyek", language: language), selection: $project) {
                 Text(localizedText("No project", "Tanpa project", language: language)).tag("")
                 ForEach(store.projects, id: \.self) { Text($0).tag($0) }
