@@ -1015,9 +1015,10 @@ struct ContentView: View {
             window.setFrame(frame, display: true, animate: true)
         } else {
             expandedWindowHeight = window.frame.height
-            // The transparent native title bar still reserves vertical space.
-            // Keep enough outer height so the compact 40pt header is not clipped.
-            let foldedHeight: CGFloat = 76
+            // Keep the folded window close to the header's actual 40pt height.
+            // A small outer allowance prevents clipping while avoiding the
+            // oversized empty band that appeared in the folded state.
+            let foldedHeight: CGFloat = 40
             window.minSize = NSSize(width: 360, height: foldedHeight)
             var frame = window.frame
             frame.size.height = foldedHeight
@@ -1827,6 +1828,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private var language: AppLanguage { .current }
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        // The app can be opened from both ~/Applications and /Applications.
+        // Treat those copies as one process so only one floating widget exists.
+        let currentPID = ProcessInfo.processInfo.processIdentifier
+        if let bundleIdentifier = Bundle.main.bundleIdentifier,
+           let existingInstance = NSRunningApplication
+            .runningApplications(withBundleIdentifier: bundleIdentifier)
+            .first(where: { $0.processIdentifier != currentPID }) {
+            existingInstance.activate(options: [.activateAllWindows])
+            NSApplication.shared.terminate(nil)
+            return
+        }
+
         configureApplicationMenu()
         let content = ContentView(store: store)
         let hostingView = NSHostingView(rootView: content)
