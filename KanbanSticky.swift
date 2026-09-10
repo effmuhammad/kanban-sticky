@@ -742,6 +742,20 @@ struct ContentView: View {
                           ? localizedText("Hide notes", "Sembunyikan catatan", language: language)
                           : localizedText("Show notes", "Tampilkan catatan", language: language))
                     Button {
+                        withAnimation(.easeInOut(duration: 0.2)) {
+                            transparentBackground.toggle()
+                        }
+                    } label: {
+                        Image(systemName: transparentBackground ? "circle.lefthalf.filled" : "circle")
+                            .font(.system(size: 12, weight: .semibold))
+                            .frame(width: 24, height: 24)
+                            .background(.white.opacity(transparentBackground ? 0.2 : 0.1), in: Circle())
+                    }
+                    .buttonStyle(.plain)
+                    .help(transparentBackground
+                          ? localizedText("Use opaque background", "Gunakan background solid", language: language)
+                          : localizedText("Use transparent background", "Gunakan background transparan", language: language))
+                    Button {
                         taskEditorStatus = selectedStatus
                         showingTaskEditor = true
                     } label: {
@@ -1189,6 +1203,8 @@ private struct TaskRow: View {
                 Image(systemName: task.status == .done ? "checkmark.circle.fill" : "circle")
                     .font(.system(size: 15, weight: .medium))
                     .foregroundStyle(task.status == .done ? .white : .white.opacity(0.65))
+                    .frame(width: 24, height: 24)
+                    .contentShape(Circle())
             }
             .buttonStyle(.plain)
             .help(task.status == .done
@@ -1277,7 +1293,7 @@ private struct TaskRow: View {
                     .padding(.leading, 1)
                 Rectangle()
                     .fill(.white.opacity(0.001))
-                    .frame(width: 18)
+                    .frame(width: 8)
                     .contentShape(Rectangle())
                     .help(localizedText("Hold the line to reorder vertically", "Tahan garis untuk mengatur urutan vertikal", language: language))
                     .highPriorityGesture(
@@ -1741,6 +1757,12 @@ private final class NativeWindowDragNSView: NSView {
     }
 }
 
+private final class ClickThroughHostingView<Content: View>: NSHostingView<Content> {
+    override func acceptsFirstMouse(for event: NSEvent?) -> Bool {
+        true
+    }
+}
+
 private final class NotesResizeNSView: NSView {
     var minimumWidth: CGFloat = 200
     var maximumWidth: CGFloat = 520
@@ -1842,7 +1864,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
         configureApplicationMenu()
         let content = ContentView(store: store)
-        let hostingView = NSHostingView(rootView: content)
+        let hostingView = ClickThroughHostingView(rootView: content)
 
         window = NSWindow(
             contentRect: NSRect(x: 0, y: 0, width: 420, height: 560),
